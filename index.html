@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4f5f7">
+    <meta name="description" content="ColorCue — programmable full-screen visual cues.">
+    <title>ColorCue</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main id="setup" class="setup-shell">
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <h1>ColorCue</h1>
+          <p>Programmable full-screen visual cues</p>
+        </div>
+      </header>
+
+      <form id="setup-form" novalidate>
+        <div class="setup-grid">
+          <section class="panel sequence-panel" aria-labelledby="sequence-heading">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Sequence</p>
+                <h2 id="sequence-heading">Color cues</h2>
+                <p class="section-description">Add colors, set exact values, and arrange the order.</p>
+              </div>
+              <button id="add-color" class="button button-secondary" type="button">
+                <span aria-hidden="true">+</span> Add color
+              </button>
+            </div>
+
+            <ol id="color-list" class="color-list" aria-label="Color sequence"></ol>
+            <p id="color-limit-message" class="field-message" role="status" aria-live="polite"></p>
+          </section>
+
+          <aside class="settings-column" aria-label="Session settings">
+            <section class="panel" aria-labelledby="timing-heading">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Timing</p>
+                  <h2 id="timing-heading">Session settings</h2>
+                </div>
+              </div>
+
+              <div class="setting-list">
+                <div class="setting-row">
+                  <div>
+                    <label for="color-duration">Color duration</label>
+                    <p>Time each color remains visible</p>
+                  </div>
+                  <div class="number-field">
+                    <input id="color-duration" name="colorDuration" type="number" min="0.1" max="3600" step="0.1" required inputmode="decimal">
+                    <span>sec</span>
+                  </div>
+                </div>
+
+                <fieldset class="toggle-setting">
+                  <legend class="sr-only">Round settings</legend>
+                  <div class="toggle-row">
+                    <div>
+                      <label for="infinite-rounds">Repeat indefinitely</label>
+                      <p>Continue until you end the session</p>
+                    </div>
+                    <input id="infinite-rounds" class="switch" name="infiniteRounds" type="checkbox" role="switch" aria-controls="rounds-options">
+                  </div>
+                  <div id="rounds-options" class="conditional-setting">
+                    <label for="rounds">Number of rounds</label>
+                    <div class="number-field number-field-plain">
+                      <input id="rounds" name="rounds" type="number" min="1" max="100" step="1" required inputmode="numeric">
+                    </div>
+                  </div>
+                </fieldset>
+
+                <fieldset class="toggle-setting">
+                  <legend class="sr-only">Black interval settings</legend>
+                  <div class="toggle-row">
+                    <div>
+                      <label for="black-enabled">Black screen between colors</label>
+                      <p>Add a visual break between cues</p>
+                    </div>
+                    <input id="black-enabled" class="switch" name="blackEnabled" type="checkbox" role="switch" aria-controls="black-options">
+                  </div>
+                  <div id="black-options" class="conditional-setting">
+                    <label for="black-duration">Black screen duration</label>
+                    <div class="number-field">
+                      <input id="black-duration" name="blackDuration" type="number" min="0.1" max="60" step="0.1" required inputmode="decimal">
+                      <span>sec</span>
+                    </div>
+                  </div>
+                </fieldset>
+
+                <fieldset class="toggle-setting">
+                  <legend class="sr-only">Countdown settings</legend>
+                  <div class="toggle-row">
+                    <div>
+                      <label for="countdown-enabled">Countdown before each color</label>
+                      <p>Count down on black before every cue</p>
+                    </div>
+                    <input id="countdown-enabled" class="switch" name="countdownEnabled" type="checkbox" role="switch" aria-controls="countdown-options">
+                  </div>
+                  <div id="countdown-options" class="conditional-setting">
+                    <label for="countdown-duration">Countdown duration</label>
+                    <div class="number-field">
+                      <input id="countdown-duration" name="countdownDuration" type="number" min="1" max="60" step="1" required inputmode="numeric">
+                      <span>sec</span>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            </section>
+
+            <section class="session-card" aria-labelledby="summary-heading">
+              <div>
+                <p class="eyebrow">Ready when you are</p>
+                <h2 id="summary-heading">Session summary</h2>
+                <p id="session-summary" class="session-summary" aria-live="polite"></p>
+              </div>
+              <button id="start-session" class="button button-primary" type="submit">
+                Start Session <span aria-hidden="true">→</span>
+              </button>
+              <p class="session-hint"><kbd>Space</kbd> pauses · <kbd>Esc</kbd> ends</p>
+            </section>
+
+            <button id="reset-defaults" class="reset-button" type="button">Reset to defaults</button>
+          </aside>
+        </div>
+      </form>
+
+      <footer class="setup-footer">Your configuration is saved on this device.</footer>
+    </main>
+
+    <section id="session" class="session-screen" aria-label="ColorCue session" aria-hidden="true">
+      <output id="countdown" class="countdown" aria-live="off"></output>
+
+      <div id="pause-overlay" class="pause-overlay" hidden>
+        <strong>Paused</strong>
+        <span>Space to resume · Esc to end</span>
+      </div>
+
+      <div id="complete-screen" class="complete-screen" hidden>
+        <div class="complete-dialog">
+          <p class="complete-kicker">ColorCue</p>
+          <h2>Session complete</h2>
+          <div class="complete-actions">
+            <button id="run-again" class="button button-light" type="button">Run Again</button>
+            <button id="back-to-setup" class="button button-ghost-light" type="button">Back to Setup</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <template id="color-row-template">
+      <li class="color-row">
+        <span class="sequence-number" aria-hidden="true"></span>
+        <label class="color-picker-wrap">
+          <span class="sr-only color-picker-label">Choose color</span>
+          <input class="color-picker" type="color">
+        </label>
+        <div class="hex-field">
+          <label class="sr-only hex-label">Hex value</label>
+          <input class="hex-input" type="text" maxlength="7" pattern="#[0-9A-Fa-f]{6}" spellcheck="false" autocomplete="off" aria-describedby="hex-format-hint">
+        </div>
+        <span class="color-swatch" aria-hidden="true"></span>
+        <div class="row-actions">
+          <button class="icon-button move-up" type="button"><span aria-hidden="true">↑</span></button>
+          <button class="icon-button move-down" type="button"><span aria-hidden="true">↓</span></button>
+          <button class="icon-button remove-color" type="button"><span aria-hidden="true">×</span></button>
+        </div>
+      </li>
+    </template>
+
+    <p id="hex-format-hint" class="sr-only">Enter a six-digit hexadecimal color beginning with a hash.</p>
+  </body>
+</html>
