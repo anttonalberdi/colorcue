@@ -78,6 +78,14 @@
                   </div>
                 </fieldset>
 
+                <div class="toggle-setting toggle-row">
+                  <div>
+                    <label for="randomize-colors">Randomize color order</label>
+                    <p>Shuffle the sequence for every round</p>
+                  </div>
+                  <input id="randomize-colors" class="switch" name="randomizeColors" type="checkbox" role="switch">
+                </div>
+
                 <fieldset class="toggle-setting">
                   <legend class="sr-only">Black interval settings</legend>
                   <div class="toggle-row">
@@ -105,14 +113,51 @@
                     </div>
                     <input id="countdown-enabled" class="switch" name="countdownEnabled" type="checkbox" role="switch" aria-controls="countdown-options">
                   </div>
-                  <div id="countdown-options" class="conditional-setting">
-                    <label for="countdown-duration">Countdown duration</label>
-                    <div class="number-field">
-                      <input id="countdown-duration" name="countdownDuration" type="number" min="1" max="60" step="1" required inputmode="numeric">
-                      <span>sec</span>
+                  <div id="countdown-options" class="conditional-setting conditional-setting-stack">
+                    <div class="conditional-setting-row">
+                      <label for="countdown-duration">Countdown duration</label>
+                      <div class="number-field">
+                        <input id="countdown-duration" name="countdownDuration" type="number" min="1" max="60" step="1" required inputmode="numeric">
+                        <span>sec</span>
+                      </div>
+                    </div>
+                    <div class="conditional-setting-row">
+                      <label for="countdown-size">Number size</label>
+                      <select id="countdown-size" class="select-field" name="countdownSize">
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                      </select>
                     </div>
                   </div>
                 </fieldset>
+              </div>
+            </section>
+
+            <section class="panel" aria-labelledby="audio-heading">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Audio</p>
+                  <h2 id="audio-heading">Sound cues</h2>
+                </div>
+              </div>
+
+              <div class="setting-list">
+                <div class="toggle-setting toggle-row">
+                  <div>
+                    <label for="countdown-sound-enabled">Countdown sounds</label>
+                    <p>Play a short beep with each number</p>
+                  </div>
+                  <input id="countdown-sound-enabled" class="switch" name="countdownSoundEnabled" type="checkbox" role="switch">
+                </div>
+
+                <div class="toggle-setting toggle-row">
+                  <div>
+                    <label for="color-sound-enabled">Color transition sounds</label>
+                    <p>Play a chime as each color appears</p>
+                  </div>
+                  <input id="color-sound-enabled" class="switch" name="colorSoundEnabled" type="checkbox" role="switch">
+                </div>
               </div>
             </section>
 

@@ -1,7 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "colorcue-config";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 5;
 const MAX_COLORS = 24;
 const COMPLETION_DELAY_MS = 300;
 
@@ -12,7 +12,11 @@ const DEFAULT_CONFIG = Object.freeze({
   blackDuration: 1,
   countdownEnabled: true,
   countdownDuration: 3,
+  countdownSize: "small",
+  countdownSoundEnabled: false,
+  colorSoundEnabled: false,
   infiniteRounds: true,
+  randomizeColors: false,
   rounds: 1,
 });
 
@@ -34,12 +38,16 @@ const elements = {
   infiniteRounds: document.querySelector("#infinite-rounds"),
   rounds: document.querySelector("#rounds"),
   roundsOptions: document.querySelector("#rounds-options"),
+  randomizeColors: document.querySelector("#randomize-colors"),
   blackEnabled: document.querySelector("#black-enabled"),
   blackDuration: document.querySelector("#black-duration"),
   blackOptions: document.querySelector("#black-options"),
   countdownEnabled: document.querySelector("#countdown-enabled"),
   countdownDuration: document.querySelector("#countdown-duration"),
+  countdownSize: document.querySelector("#countdown-size"),
   countdownOptions: document.querySelector("#countdown-options"),
+  countdownSoundEnabled: document.querySelector("#countdown-sound-enabled"),
+  colorSoundEnabled: document.querySelector("#color-sound-enabled"),
   sessionSummary: document.querySelector("#session-summary"),
   resetDefaults: document.querySelector("#reset-defaults"),
   session: document.querySelector("#session"),
@@ -83,7 +91,11 @@ function normalizeConfig(candidate) {
     blackDuration: validNumber(candidate.blackDuration, "blackDuration"),
     countdownEnabled: typeof candidate.countdownEnabled === "boolean" ? candidate.countdownEnabled : null,
     countdownDuration: validNumber(candidate.countdownDuration, "countdownDuration", true),
+    countdownSize: ["small", "medium", "large"].includes(candidate.countdownSize) ? candidate.countdownSize : null,
+    countdownSoundEnabled: typeof candidate.countdownSoundEnabled === "boolean" ? candidate.countdownSoundEnabled : null,
+    colorSoundEnabled: typeof candidate.colorSoundEnabled === "boolean" ? candidate.colorSoundEnabled : null,
     infiniteRounds: typeof candidate.infiniteRounds === "boolean" ? candidate.infiniteRounds : null,
+    randomizeColors: typeof candidate.randomizeColors === "boolean" ? candidate.randomizeColors : null,
     rounds: validNumber(candidate.rounds, "rounds", true),
   };
 
@@ -94,7 +106,11 @@ function normalizeConfig(candidate) {
     normalized.blackDuration === null ||
     normalized.countdownEnabled === null ||
     normalized.countdownDuration === null ||
+    normalized.countdownSize === null ||
+    normalized.countdownSoundEnabled === null ||
+    normalized.colorSoundEnabled === null ||
     normalized.infiniteRounds === null ||
+    normalized.randomizeColors === null ||
     normalized.rounds === null
   ) {
     return null;
@@ -110,8 +126,36 @@ function cloneDefaults() {
 function loadConfig() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (stored?.version !== STORAGE_VERSION) return cloneDefaults();
-    return normalizeConfig(stored.config) ?? cloneDefaults();
+    if (stored?.version === STORAGE_VERSION) {
+      return normalizeConfig(stored.config) ?? cloneDefaults();
+    }
+
+    if (stored?.version === 4) {
+      return normalizeConfig({
+        ...stored.config,
+        countdownSize: "small",
+      }) ?? cloneDefaults();
+    }
+
+    if (stored?.version === 3) {
+      return normalizeConfig({
+        ...stored.config,
+        randomizeColors: false,
+        countdownSize: "small",
+      }) ?? cloneDefaults();
+    }
+
+    if (stored?.version === 2) {
+      return normalizeConfig({
+        ...stored.config,
+        countdownSoundEnabled: false,
+        colorSoundEnabled: false,
+        randomizeColors: false,
+        countdownSize: "small",
+      }) ?? cloneDefaults();
+    }
+
+    return cloneDefaults();
   } catch {
     return cloneDefaults();
   }
@@ -175,6 +219,7 @@ function renderConditionalSettings() {
 
   elements.countdownOptions.hidden = !config.countdownEnabled;
   elements.countdownDuration.disabled = !config.countdownEnabled;
+  elements.countdownSize.disabled = !config.countdownEnabled;
   elements.countdownEnabled.setAttribute("aria-expanded", String(config.countdownEnabled));
 }
 
@@ -229,11 +274,15 @@ function renderColors(focusIndex = null) {
 function renderForm() {
   elements.colorDuration.value = String(config.colorDuration);
   elements.infiniteRounds.checked = config.infiniteRounds;
+  elements.randomizeColors.checked = config.randomizeColors;
   elements.rounds.value = String(config.rounds);
   elements.blackEnabled.checked = config.blackEnabled;
   elements.blackDuration.value = String(config.blackDuration);
   elements.countdownEnabled.checked = config.countdownEnabled;
   elements.countdownDuration.value = String(config.countdownDuration);
+  elements.countdownSize.value = config.countdownSize;
+  elements.countdownSoundEnabled.checked = config.countdownSoundEnabled;
+  elements.colorSoundEnabled.checked = config.colorSoundEnabled;
   renderColors();
   renderConditionalSettings();
   updateSummary();
@@ -317,35 +366,160 @@ function handleNumericInput(element, key, integer = false) {
   commitConfig();
 }
 
-function buildStages(sessionConfig) {
+function shuffleColors(colors, previousOrder = null) {
+  const shuffled = [...colors];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  const matchesPrevious =
+    previousOrder &&
+    shuffled.length > 1 &&
+    shuffled.every((color, index) => color === previousOrder[index]);
+
+  if (matchesPrevious) shuffled.push(shuffled.shift());
+  return shuffled;
+}
+
+function buildRoundStages(sessionConfig, colors, hasFollowingRound) {
   const stages = [];
-  const roundsToBuild = sessionConfig.infiniteRounds ? 1 : sessionConfig.rounds;
-  const presentationCount = sessionConfig.colors.length * roundsToBuild;
-  let presentationIndex = 0;
-
-  for (let round = 0; round < roundsToBuild; round += 1) {
-    for (const color of sessionConfig.colors) {
-      presentationIndex += 1;
-
-      if (sessionConfig.countdownEnabled) {
-        for (let value = sessionConfig.countdownDuration; value >= 1; value -= 1) {
-          stages.push({ type: "countdown", value, durationMs: 1000 });
-        }
-      }
-
-      stages.push({ type: "color", color, durationMs: sessionConfig.colorDuration * 1000 });
-
-      if (
-        sessionConfig.blackEnabled &&
-        (sessionConfig.infiniteRounds || presentationIndex < presentationCount)
-      ) {
-        stages.push({ type: "black", durationMs: sessionConfig.blackDuration * 1000 });
+  colors.forEach((color, colorIndex) => {
+    if (sessionConfig.countdownEnabled) {
+      for (let value = sessionConfig.countdownDuration; value >= 1; value -= 1) {
+        stages.push({ type: "countdown", value, durationMs: 1000 });
       }
     }
+
+    stages.push({ type: "color", color, durationMs: sessionConfig.colorDuration * 1000 });
+
+    if (
+      sessionConfig.blackEnabled &&
+      (colorIndex < colors.length - 1 || hasFollowingRound)
+    ) {
+      stages.push({ type: "black", durationMs: sessionConfig.blackDuration * 1000 });
+    }
+  });
+
+  return stages;
+}
+
+function getRoundOrder(sessionConfig, previousOrder = null) {
+  return sessionConfig.randomizeColors
+    ? shuffleColors(sessionConfig.colors, previousOrder)
+    : [...sessionConfig.colors];
+}
+
+function buildStages(sessionConfig) {
+  const stages = [];
+  let previousOrder = null;
+
+  for (let round = 0; round < sessionConfig.rounds; round += 1) {
+    const colors = getRoundOrder(sessionConfig, previousOrder);
+    const hasFollowingRound = round < sessionConfig.rounds - 1;
+    stages.push(...buildRoundStages(sessionConfig, colors, hasFollowingRound));
+    previousOrder = colors;
   }
 
   return stages;
 }
+
+function createInfiniteRoundFactory(sessionConfig) {
+  let previousOrder = null;
+
+  return () => {
+    const colors = getRoundOrder(sessionConfig, previousOrder);
+    previousOrder = colors;
+    return buildRoundStages(sessionConfig, colors, true);
+  };
+}
+
+class AudioCueEngine {
+  constructor() {
+    this.context = null;
+    this.activeOscillators = new Set();
+    this.countdownEnabled = false;
+    this.colorEnabled = false;
+  }
+
+  prepare({ countdownSoundEnabled, colorSoundEnabled }) {
+    this.stopAll();
+    this.countdownEnabled = countdownSoundEnabled;
+    this.colorEnabled = colorSoundEnabled;
+    if (!this.countdownEnabled && !this.colorEnabled) return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    try {
+      this.context ??= new AudioContextClass();
+      if (this.context.state === "suspended") {
+        this.context.resume().catch(() => {});
+      }
+    } catch {
+      this.context = null;
+    }
+  }
+
+  playCountdown() {
+    if (!this.countdownEnabled) return;
+    this.playTone(520, 0.085, 0.11);
+  }
+
+  playColorTransition() {
+    if (!this.colorEnabled) return;
+    this.playTone(920, 0.13, 0.095);
+  }
+
+  playTone(frequency, durationSeconds, volume) {
+    if (!this.context) return;
+
+    try {
+      const now = this.context.currentTime;
+      const oscillator = this.context.createOscillator();
+      const gain = this.context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSeconds);
+      oscillator.connect(gain);
+      gain.connect(this.context.destination);
+      this.activeOscillators.add(oscillator);
+      oscillator.onended = () => {
+        this.activeOscillators.delete(oscillator);
+        oscillator.disconnect();
+        gain.disconnect();
+      };
+      oscillator.start(now);
+      oscillator.stop(now + durationSeconds);
+    } catch {
+      // Audio is supplementary; the visual session continues if audio fails.
+    }
+  }
+
+  stopAll() {
+    this.activeOscillators.forEach((oscillator) => {
+      try {
+        oscillator.stop();
+      } catch {
+        // The oscillator may already have ended.
+      }
+    });
+    this.activeOscillators.clear();
+  }
+
+  close() {
+    this.stopAll();
+    if (this.context && this.context.state !== "closed") {
+      this.context.close().catch(() => {});
+    }
+    this.context = null;
+  }
+}
+
+const audioCueEngine = new AudioCueEngine();
 
 class SessionController {
   constructor({ renderStage, renderPaused, onComplete }) {
@@ -358,13 +532,15 @@ class SessionController {
     this.deadline = 0;
     this.remainingMs = 0;
     this.loop = false;
+    this.onLoop = null;
     this.status = "idle";
   }
 
-  start(stages, { loop = false } = {}) {
+  start(stages, { loop = false, onLoop = null } = {}) {
     this.stop();
     this.stages = stages;
     this.loop = loop;
+    this.onLoop = onLoop;
     this.stageIndex = -1;
     this.status = "running";
     this.advance(0);
@@ -376,7 +552,10 @@ class SessionController {
     this.stageIndex += 1;
 
     while (this.stageIndex < this.stages.length || this.loop) {
-      if (this.stageIndex >= this.stages.length) this.stageIndex = 0;
+      if (this.stageIndex >= this.stages.length) {
+        this.stages = this.onLoop?.() ?? this.stages;
+        this.stageIndex = 0;
+      }
       const stage = this.stages[this.stageIndex];
       const adjustedDuration = stage.durationMs - overshootMs;
       if (adjustedDuration > 0) {
@@ -430,6 +609,7 @@ class SessionController {
     this.stageIndex = -1;
     this.remainingMs = 0;
     this.loop = false;
+    this.onLoop = null;
     this.status = "idle";
     this.renderPaused(false);
   }
@@ -441,6 +621,7 @@ function renderStage(stage) {
     elements.session.style.backgroundColor = stage.color;
     elements.countdown.value = "";
     elements.countdown.textContent = "";
+    audioCueEngine.playColorTransition();
     return;
   }
 
@@ -448,6 +629,7 @@ function renderStage(stage) {
   const countdownText = stage.type === "countdown" ? String(stage.value) : "";
   elements.countdown.value = countdownText;
   elements.countdown.textContent = countdownText;
+  if (stage.type === "countdown") audioCueEngine.playCountdown();
 }
 
 function renderPaused(isPaused) {
@@ -504,21 +686,31 @@ function startSession({ requestFullScreen = true } = {}) {
   const snapshot = normalizeConfig(config);
   if (!snapshot) return;
 
+  audioCueEngine.prepare(snapshot);
   if (requestFullScreen) requestFullscreen();
   window.clearTimeout(completionTimerId);
   completionTimerId = null;
   elements.session.setAttribute("aria-hidden", "false");
+  elements.session.dataset.countdownSize = snapshot.countdownSize;
   elements.completeScreen.hidden = true;
   elements.pauseOverlay.hidden = true;
   document.activeElement?.blur();
   document.body.classList.add("in-session");
   document.body.classList.remove("cursor-hidden");
   showCursorTemporarily();
-  sessionController.start(buildStages(snapshot), { loop: snapshot.infiniteRounds });
+  const infiniteRoundFactory = snapshot.infiniteRounds
+    ? createInfiniteRoundFactory(snapshot)
+    : null;
+  const stages = infiniteRoundFactory ? infiniteRoundFactory() : buildStages(snapshot);
+  sessionController.start(stages, {
+    loop: snapshot.infiniteRounds,
+    onLoop: infiniteRoundFactory,
+  });
 }
 
 function endSession() {
   sessionController.stop();
+  audioCueEngine.stopAll();
   sessionEnteredFullscreen = false;
   window.clearTimeout(cursorTimerId);
   window.clearTimeout(completionTimerId);
@@ -527,6 +719,7 @@ function endSession() {
   elements.countdown.textContent = "";
   elements.completeScreen.hidden = true;
   elements.session.setAttribute("aria-hidden", "true");
+  delete elements.session.dataset.countdownSize;
   elements.session.style.backgroundColor = "#000000";
   document.body.classList.remove("in-session", "cursor-hidden");
   exitFullscreen();
@@ -557,9 +750,29 @@ elements.rounds.addEventListener("input", () => handleNumericInput(elements.roun
 elements.blackDuration.addEventListener("input", () => handleNumericInput(elements.blackDuration, "blackDuration"));
 elements.countdownDuration.addEventListener("input", () => handleNumericInput(elements.countdownDuration, "countdownDuration", true));
 
+elements.countdownSize.addEventListener("change", () => {
+  config.countdownSize = elements.countdownSize.value;
+  commitConfig();
+});
+
+elements.countdownSoundEnabled.addEventListener("change", () => {
+  config.countdownSoundEnabled = elements.countdownSoundEnabled.checked;
+  commitConfig();
+});
+
+elements.colorSoundEnabled.addEventListener("change", () => {
+  config.colorSoundEnabled = elements.colorSoundEnabled.checked;
+  commitConfig();
+});
+
 elements.infiniteRounds.addEventListener("change", () => {
   config.infiniteRounds = elements.infiniteRounds.checked;
   renderConditionalSettings();
+  commitConfig();
+});
+
+elements.randomizeColors.addEventListener("change", () => {
+  config.randomizeColors = elements.randomizeColors.checked;
   commitConfig();
 });
 
@@ -624,6 +837,7 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("pagehide", () => {
   sessionController.stop();
+  audioCueEngine.close();
   window.clearTimeout(cursorTimerId);
   window.clearTimeout(completionTimerId);
 });

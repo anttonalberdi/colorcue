@@ -35,7 +35,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -50,7 +51,8 @@ input[type="checkbox"] {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--focus) 34%, transparent);
   outline-offset: 2px;
 }
@@ -352,6 +354,34 @@ input:focus-visible {
   gap: 18px;
 }
 
+.conditional-setting-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.conditional-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.conditional-setting-row + .conditional-setting-row {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.select-field {
+  min-width: 112px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0 32px 0 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
 .setting-row label,
 .toggle-row label,
 .conditional-setting label {
@@ -564,6 +594,14 @@ body.in-session.cursor-hidden * {
 
 .countdown:empty {
   display: none;
+}
+
+.session-screen[data-countdown-size="medium"] .countdown {
+  font-size: clamp(10rem, 50vmin, 34rem);
+}
+
+.session-screen[data-countdown-size="large"] .countdown {
+  font-size: clamp(12rem, 82vmin, 60rem);
 }
 
 .pause-overlay,

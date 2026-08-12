@@ -6,6 +6,9 @@ ColorCue is a minimal training utility for presenting programmable, full-screen 
 
 - Editable color sequence with native color pickers, exact hex values, reordering, and removal
 - Per-color duration, indefinite looping by default, optional finite rounds, countdowns, and black intervals
+- Small, medium, or near-full-screen countdown number sizes
+- Optional color-order randomization that reshuffles the sequence for every round
+- Optional generated audio cues for countdown numbers and color transitions
 - Live summary of cue count and total programmed duration
 - Full-viewport session mode with a best-effort Fullscreen API request
 - Accurate centralized timing with pause/resume support
@@ -13,6 +16,8 @@ ColorCue is a minimal training utility for presenting programmable, full-screen 
 - Versioned configuration persistence in `localStorage`
 - Responsive layout for desktop, tablet, and mobile
 - No framework, external dependency, backend, or build step
+
+Sound cues use the browser's Web Audio API and do not require audio files. Countdown and color-transition sounds can be enabled independently; both are off by default.
 
 ## Run locally
 
