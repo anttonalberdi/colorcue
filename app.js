@@ -1,9 +1,14 @@
 "use strict";
 
 const STORAGE_KEY = "colorcue-config";
-const STORAGE_VERSION = 5;
+const STORAGE_VERSION = 6;
 const MAX_COLORS = 24;
 const COMPLETION_DELAY_MS = 300;
+const SOUND_LEVELS = Object.freeze({
+  loud: Object.freeze({ countdown: 1, color: 0.9 }),
+  medium: Object.freeze({ countdown: 0.5, color: 0.45 }),
+  faint: Object.freeze({ countdown: 0.11, color: 0.095 }),
+});
 
 const DEFAULT_CONFIG = Object.freeze({
   colors: ["#bd0028", "#ead200", "#0380dc", "#68b936", "#ff9209"],
@@ -15,6 +20,7 @@ const DEFAULT_CONFIG = Object.freeze({
   countdownSize: "small",
   countdownSoundEnabled: false,
   colorSoundEnabled: false,
+  soundVolume: "loud",
   infiniteRounds: true,
   randomizeColors: false,
   rounds: 1,
@@ -48,6 +54,7 @@ const elements = {
   countdownOptions: document.querySelector("#countdown-options"),
   countdownSoundEnabled: document.querySelector("#countdown-sound-enabled"),
   colorSoundEnabled: document.querySelector("#color-sound-enabled"),
+  soundVolume: document.querySelector("#sound-volume"),
   sessionSummary: document.querySelector("#session-summary"),
   resetDefaults: document.querySelector("#reset-defaults"),
   session: document.querySelector("#session"),
@@ -94,6 +101,7 @@ function normalizeConfig(candidate) {
     countdownSize: ["small", "medium", "large"].includes(candidate.countdownSize) ? candidate.countdownSize : null,
     countdownSoundEnabled: typeof candidate.countdownSoundEnabled === "boolean" ? candidate.countdownSoundEnabled : null,
     colorSoundEnabled: typeof candidate.colorSoundEnabled === "boolean" ? candidate.colorSoundEnabled : null,
+    soundVolume: Object.hasOwn(SOUND_LEVELS, candidate.soundVolume) ? candidate.soundVolume : null,
     infiniteRounds: typeof candidate.infiniteRounds === "boolean" ? candidate.infiniteRounds : null,
     randomizeColors: typeof candidate.randomizeColors === "boolean" ? candidate.randomizeColors : null,
     rounds: validNumber(candidate.rounds, "rounds", true),
@@ -109,6 +117,7 @@ function normalizeConfig(candidate) {
     normalized.countdownSize === null ||
     normalized.countdownSoundEnabled === null ||
     normalized.colorSoundEnabled === null ||
+    normalized.soundVolume === null ||
     normalized.infiniteRounds === null ||
     normalized.randomizeColors === null ||
     normalized.rounds === null
@@ -130,10 +139,18 @@ function loadConfig() {
       return normalizeConfig(stored.config) ?? cloneDefaults();
     }
 
+    if (stored?.version === 5) {
+      return normalizeConfig({
+        ...stored.config,
+        soundVolume: "loud",
+      }) ?? cloneDefaults();
+    }
+
     if (stored?.version === 4) {
       return normalizeConfig({
         ...stored.config,
         countdownSize: "small",
+        soundVolume: "loud",
       }) ?? cloneDefaults();
     }
 
@@ -142,6 +159,7 @@ function loadConfig() {
         ...stored.config,
         randomizeColors: false,
         countdownSize: "small",
+        soundVolume: "loud",
       }) ?? cloneDefaults();
     }
 
@@ -152,6 +170,7 @@ function loadConfig() {
         colorSoundEnabled: false,
         randomizeColors: false,
         countdownSize: "small",
+        soundVolume: "loud",
       }) ?? cloneDefaults();
     }
 
@@ -283,6 +302,7 @@ function renderForm() {
   elements.countdownSize.value = config.countdownSize;
   elements.countdownSoundEnabled.checked = config.countdownSoundEnabled;
   elements.colorSoundEnabled.checked = config.colorSoundEnabled;
+  elements.soundVolume.value = config.soundVolume;
   renderColors();
   renderConditionalSettings();
   updateSummary();
@@ -441,12 +461,14 @@ class AudioCueEngine {
     this.activeOscillators = new Set();
     this.countdownEnabled = false;
     this.colorEnabled = false;
+    this.volume = SOUND_LEVELS.loud;
   }
 
-  prepare({ countdownSoundEnabled, colorSoundEnabled }) {
+  prepare({ countdownSoundEnabled, colorSoundEnabled, soundVolume }) {
     this.stopAll();
     this.countdownEnabled = countdownSoundEnabled;
     this.colorEnabled = colorSoundEnabled;
+    this.volume = SOUND_LEVELS[soundVolume];
     if (!this.countdownEnabled && !this.colorEnabled) return;
 
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -464,12 +486,12 @@ class AudioCueEngine {
 
   playCountdown() {
     if (!this.countdownEnabled) return;
-    this.playTone(520, 0.085, 1);
+    this.playTone(520, 0.085, this.volume.countdown);
   }
 
   playColorTransition() {
     if (!this.colorEnabled) return;
-    this.playTone(920, 0.13, 0.9);
+    this.playTone(920, 0.13, this.volume.color);
   }
 
   playTone(frequency, durationSeconds, volume) {
@@ -762,6 +784,11 @@ elements.countdownSoundEnabled.addEventListener("change", () => {
 
 elements.colorSoundEnabled.addEventListener("change", () => {
   config.colorSoundEnabled = elements.colorSoundEnabled.checked;
+  commitConfig();
+});
+
+elements.soundVolume.addEventListener("change", () => {
+  config.soundVolume = elements.soundVolume.value;
   commitConfig();
 });
 
