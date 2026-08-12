@@ -464,12 +464,12 @@ class AudioCueEngine {
 
   playCountdown() {
     if (!this.countdownEnabled) return;
-    this.playTone(520, 0.085, 0.11);
+    this.playTone(520, 0.085, 0.5);
   }
 
   playColorTransition() {
     if (!this.colorEnabled) return;
-    this.playTone(920, 0.13, 0.095);
+    this.playTone(920, 0.13, 0.45);
   }
 
   playTone(frequency, durationSeconds, volume) {
