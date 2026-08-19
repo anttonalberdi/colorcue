@@ -125,9 +125,11 @@ select:focus-visible {
   align-items: start;
 }
 
+.sequence-column,
 .settings-column {
   display: grid;
   gap: 16px;
+  align-content: start;
 }
 
 .panel,
@@ -324,6 +326,82 @@ select:focus-visible {
 .remove-color:hover:not(:disabled) {
   background: #feeceb;
   color: var(--danger);
+}
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.position-option {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 12px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-muted);
+  cursor: pointer;
+  transition: border-color 130ms ease, background-color 130ms ease;
+}
+
+.position-option:hover {
+  border-color: var(--line-strong);
+}
+
+.position-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.position-card.is-selected .position-option {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.position-option:has(.position-toggle:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--focus) 34%, transparent);
+  outline-offset: 2px;
+}
+
+.position-option:has(.position-toggle:disabled) {
+  cursor: default;
+}
+
+.position-thumb {
+  display: block;
+  width: 100%;
+}
+
+.position-thumb .pose-figure {
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: 0.24;
+  transition: opacity 130ms ease;
+}
+
+.position-card.is-selected .position-thumb .pose-figure {
+  opacity: 1;
+}
+
+.position-name {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.position-card.is-selected .position-name {
+  color: var(--text);
+  font-weight: 650;
 }
 
 .field-message {
@@ -604,6 +682,27 @@ body.in-session.cursor-hidden * {
   font-size: clamp(12rem, 82vmin, 60rem);
 }
 
+.position-stage {
+  position: absolute;
+  inset: 13% 11%;
+}
+
+.position-stage .pose-figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: invert(1);
+}
+
+.session-screen[data-position-size="small"] .position-stage {
+  inset: 27% 25%;
+}
+
+.session-screen[data-position-size="large"] .position-stage {
+  inset: 3%;
+}
+
 .pause-overlay,
 .complete-screen {
   position: absolute;
@@ -757,6 +856,10 @@ body.in-session.cursor-hidden * {
 
   .color-swatch {
     display: none;
+  }
+
+  .position-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   }
 
   .row-actions {

@@ -1,14 +1,15 @@
 # ColorCue
 
-ColorCue is a minimal training utility for presenting programmable, full-screen color cues. Configure a color sequence and its timing, then start a distraction-free session that fills the browser viewport.
+ColorCue is a minimal training utility for presenting programmable, full-screen visual cues. Configure a color sequence, optional starting-position figures, and their timing, then start a distraction-free session that fills the browser viewport.
 
 ## Features
 
 - Editable color sequence with native color pickers, exact hex values, reordering, and removal
+- Built-in library of 16 starting-position figures that can precede, follow, or replace the color cues
 - Per-color duration, indefinite looping by default, optional finite rounds, countdowns, and black intervals
-- Small, medium, or near-full-screen countdown number sizes
-- Optional color-order randomization that reshuffles the sequence for every round
-- Optional generated audio cues for countdown numbers and color transitions, with loud, medium, and faint presets
+- Small, medium, or near-full-screen countdown number and position figure sizes
+- Optional color-order and position-order randomization that reshuffles for every round
+- Optional generated audio cues for countdown numbers and color or position transitions, with loud, medium, and faint presets
 - Live summary of cue count and total programmed duration
 - Full-viewport session mode with a best-effort Fullscreen API request
 - Accurate centralized timing with pause/resume support
@@ -17,7 +18,22 @@ ColorCue is a minimal training utility for presenting programmable, full-screen 
 - Responsive layout for desktop, tablet, and mobile
 - No framework, external dependency, backend, or build step
 
-Sound cues use the browser's Web Audio API and do not require audio files. Countdown and color-transition sounds can be enabled independently; both are off by default. Their shared volume can be set to loud, medium, or faint.
+Sound cues use the browser's Web Audio API and do not require audio files. Countdown and cue-transition sounds can be enabled independently; both are off by default. Their shared volume can be set to loud, medium, or faint. Colors and positions use distinct pitches for the transition chime.
+
+## Starting positions
+
+The 16 position pictograms live in `positions/` as PNGs with transparent backgrounds. Enable **Show starting positions** to pick which of them can appear, then choose where the figure lands in each cue:
+
+| Placement | Stage order per cue |
+| --- | --- |
+| Instead of colors | countdown → position |
+| Before countdown | position → countdown → color |
+| Before color | countdown → position → color |
+| After color | countdown → color → position |
+
+Every pictogram shares one crop of the source artwork, so the figures keep a common ground line and a consistent scale relative to each other; the session scales each one to fit the chosen figure size. The session inverts them with a CSS filter to show white on black, while the picker shows them as-is. Positions cycle through the selected library independently of the colors, so the two sequences can differ in length. **Instead of colors** turns the session into a position-only sequence and hides the color controls; every other placement leaves the color sequence exactly as it was.
+
+The picker's sixteen images are only built once positions are switched on, and a session preloads just the positions it will use.
 
 ## Run locally
 
@@ -40,7 +56,7 @@ Indefinite sessions continue until you press **Esc**. After a finite session's f
 
 ## Configuration persistence
 
-ColorCue saves the complete configuration to the browser's `localStorage` whenever it changes. The stored object includes a schema version so incompatible future data can fall back safely to defaults. Malformed, missing, or inaccessible storage also falls back to the default five-color sequence and indefinite rounds.
+ColorCue saves the complete configuration to the browser's `localStorage` whenever it changes. The stored object includes a schema version; configurations saved by earlier versions are upgraded by filling in whatever settings they predate. Malformed, missing, or inaccessible storage falls back to the default five-color sequence and indefinite rounds.
 
 **Reset to defaults** asks for confirmation before replacing the current saved configuration.
 
@@ -60,3 +76,4 @@ GitHub Pages will publish the static files directly, typically at `https://<user
 - `index.html` — semantic setup and session interfaces
 - `styles.css` — responsive setup design and pure full-viewport session styles
 - `app.js` — configuration, persistence, stage construction, rendering, and the session controller
+- `positions/` — the 16 starting-position pictograms, one PNG per position id

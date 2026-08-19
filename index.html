@@ -24,21 +24,37 @@
 
       <form id="setup-form" novalidate>
         <div class="setup-grid">
-          <section class="panel sequence-panel" aria-labelledby="sequence-heading">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Sequence</p>
-                <h2 id="sequence-heading">Color cues</h2>
-                <p class="section-description">Add colors, set exact values, and arrange the order.</p>
+          <div class="sequence-column">
+            <section id="color-panel" class="panel sequence-panel" data-color-setting aria-labelledby="sequence-heading">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Sequence</p>
+                  <h2 id="sequence-heading">Color cues</h2>
+                  <p class="section-description">Add colors, set exact values, and arrange the order.</p>
+                </div>
+                <button id="add-color" class="button button-secondary" type="button">
+                  <span aria-hidden="true">+</span> Add color
+                </button>
               </div>
-              <button id="add-color" class="button button-secondary" type="button">
-                <span aria-hidden="true">+</span> Add color
-              </button>
-            </div>
 
-            <ol id="color-list" class="color-list" aria-label="Color sequence"></ol>
-            <p id="color-limit-message" class="field-message" role="status" aria-live="polite"></p>
-          </section>
+              <ol id="color-list" class="color-list" aria-label="Color sequence"></ol>
+              <p id="color-limit-message" class="field-message" role="status" aria-live="polite"></p>
+            </section>
+
+            <section id="positions-panel" class="panel positions-panel" aria-labelledby="positions-heading" hidden>
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Positions</p>
+                  <h2 id="positions-heading">Starting positions</h2>
+                  <p class="section-description">Pick the body positions that can appear during the session.</p>
+                </div>
+                <button id="select-all-positions" class="button button-secondary" type="button">Select all</button>
+              </div>
+
+              <ul id="position-list" class="position-grid" aria-label="Starting position library"></ul>
+              <p id="position-selection-message" class="field-message" role="status" aria-live="polite"></p>
+            </section>
+          </div>
 
           <aside class="settings-column" aria-label="Session settings">
             <section class="panel" aria-labelledby="timing-heading">
@@ -50,7 +66,7 @@
               </div>
 
               <div class="setting-list">
-                <div class="setting-row">
+                <div class="setting-row" data-color-setting>
                   <div>
                     <label for="color-duration">Color duration</label>
                     <p>Time each color remains visible</p>
@@ -78,7 +94,7 @@
                   </div>
                 </fieldset>
 
-                <div class="toggle-setting toggle-row">
+                <div class="toggle-setting toggle-row" data-color-setting>
                   <div>
                     <label for="randomize-colors">Randomize color order</label>
                     <p>Shuffle the sequence for every round</p>
@@ -90,7 +106,7 @@
                   <legend class="sr-only">Black interval settings</legend>
                   <div class="toggle-row">
                     <div>
-                      <label for="black-enabled">Black screen between colors</label>
+                      <label for="black-enabled">Black screen between cues</label>
                       <p>Add a visual break between cues</p>
                     </div>
                     <input id="black-enabled" class="switch" name="blackEnabled" type="checkbox" role="switch" aria-controls="black-options">
@@ -108,7 +124,7 @@
                   <legend class="sr-only">Countdown settings</legend>
                   <div class="toggle-row">
                     <div>
-                      <label for="countdown-enabled">Countdown before each color</label>
+                      <label for="countdown-enabled">Countdown before each cue</label>
                       <p>Count down on black before every cue</p>
                     </div>
                     <input id="countdown-enabled" class="switch" name="countdownEnabled" type="checkbox" role="switch" aria-controls="countdown-options">
@@ -128,6 +144,58 @@
                         <option value="medium">Medium</option>
                         <option value="large">Large</option>
                       </select>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            </section>
+
+            <section class="panel" aria-labelledby="position-settings-heading">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Positions</p>
+                  <h2 id="position-settings-heading">Position cues</h2>
+                </div>
+              </div>
+
+              <div class="setting-list">
+                <fieldset class="toggle-setting">
+                  <legend class="sr-only">Starting position settings</legend>
+                  <div class="toggle-row">
+                    <div>
+                      <label for="positions-enabled">Show starting positions</label>
+                      <p>Display a body position figure with every cue</p>
+                    </div>
+                    <input id="positions-enabled" class="switch" name="positionsEnabled" type="checkbox" role="switch" aria-controls="position-options">
+                  </div>
+                  <div id="position-options" class="conditional-setting conditional-setting-stack">
+                    <div class="conditional-setting-row">
+                      <label for="position-placement">Placement</label>
+                      <select id="position-placement" class="select-field" name="positionPlacement">
+                        <option value="replace">Instead of colors</option>
+                        <option value="before-countdown">Before countdown</option>
+                        <option value="before-color">Before color</option>
+                        <option value="after-color">After color</option>
+                      </select>
+                    </div>
+                    <div class="conditional-setting-row">
+                      <label for="position-duration">Position duration</label>
+                      <div class="number-field">
+                        <input id="position-duration" name="positionDuration" type="number" min="0.1" max="3600" step="0.1" required inputmode="decimal">
+                        <span>sec</span>
+                      </div>
+                    </div>
+                    <div class="conditional-setting-row">
+                      <label for="position-size">Figure size</label>
+                      <select id="position-size" class="select-field" name="positionSize">
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                      </select>
+                    </div>
+                    <div class="conditional-setting-row">
+                      <label for="randomize-positions">Randomize position order</label>
+                      <input id="randomize-positions" class="switch" name="randomizePositions" type="checkbox" role="switch">
                     </div>
                   </div>
                 </fieldset>
@@ -165,8 +233,8 @@
 
                 <div class="toggle-setting toggle-row">
                   <div>
-                    <label for="color-sound-enabled">Color transition sounds</label>
-                    <p>Play a chime as each color appears</p>
+                    <label for="color-sound-enabled">Cue transition sounds</label>
+                    <p>Play a chime as each color or position appears</p>
                   </div>
                   <input id="color-sound-enabled" class="switch" name="colorSoundEnabled" type="checkbox" role="switch">
                 </div>
@@ -195,6 +263,8 @@
 
     <section id="session" class="session-screen" aria-label="ColorCue session" aria-hidden="true">
       <output id="countdown" class="countdown" aria-live="off"></output>
+
+      <div id="position-stage" class="position-stage" hidden></div>
 
       <div id="pause-overlay" class="pause-overlay" hidden>
         <strong>Paused</strong>
@@ -230,6 +300,16 @@
           <button class="icon-button move-down" type="button"><span aria-hidden="true">↓</span></button>
           <button class="icon-button remove-color" type="button"><span aria-hidden="true">×</span></button>
         </div>
+      </li>
+    </template>
+
+    <template id="position-card-template">
+      <li class="position-card">
+        <label class="position-option">
+          <input class="position-toggle" type="checkbox">
+          <span class="position-thumb"></span>
+          <span class="position-name"></span>
+        </label>
       </li>
     </template>
 

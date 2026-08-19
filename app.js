@@ -1,7 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "colorcue-config";
-const STORAGE_VERSION = 6;
+const STORAGE_VERSION = 7;
 const MAX_COLORS = 24;
 const COMPLETION_DELAY_MS = 300;
 const SOUND_LEVELS = Object.freeze({
@@ -9,6 +9,34 @@ const SOUND_LEVELS = Object.freeze({
   medium: Object.freeze({ countdown: 0.5, color: 0.45 }),
   faint: Object.freeze({ countdown: 0.11, color: 0.095 }),
 });
+
+const POSE_IMAGE_PATH = "./positions/";
+const POSE_IMAGE_WIDTH = 1219;
+const POSE_IMAGE_HEIGHT = 888;
+
+const POSE_LIBRARY = Object.freeze([
+  { id: "seated-tuck", name: "Seated tuck" },
+  { id: "knee-hug", name: "Knee hug" },
+  { id: "seated-reach", name: "Seated reach" },
+  { id: "supine-knee-up", name: "Supine knee up" },
+  { id: "hook-lying", name: "Hook lying" },
+  { id: "long-sit-lean", name: "Long sit lean" },
+  { id: "recline-prop", name: "Recline prop" },
+  { id: "lying-flat", name: "Lying flat" },
+  { id: "quadruped-leg-lift", name: "Quadruped leg lift" },
+  { id: "plank-reach", name: "Plank reach" },
+  { id: "bear-stance", name: "Bear stance" },
+  { id: "crawl-step", name: "Crawl step" },
+  { id: "mountain-climber", name: "Mountain climber" },
+  { id: "high-plank", name: "High plank" },
+  { id: "downward-dog", name: "Downward dog" },
+  { id: "all-fours", name: "All fours" },
+]);
+
+const POSE_IDS = Object.freeze(POSE_LIBRARY.map((pose) => pose.id));
+const POSE_BY_ID = new Map(POSE_LIBRARY.map((pose) => [pose.id, pose]));
+const POSITION_PLACEMENTS = Object.freeze(["replace", "before-countdown", "before-color", "after-color"]);
+const FIGURE_SIZES = Object.freeze(["small", "medium", "large"]);
 
 const DEFAULT_CONFIG = Object.freeze({
   colors: ["#bd0028", "#ead200", "#0380dc", "#68b936", "#ff9209"],
@@ -21,6 +49,12 @@ const DEFAULT_CONFIG = Object.freeze({
   countdownSoundEnabled: false,
   colorSoundEnabled: false,
   soundVolume: "loud",
+  positionsEnabled: false,
+  positionPlacement: "before-color",
+  positionDuration: 3,
+  positionSize: "medium",
+  randomizePositions: false,
+  positions: POSE_IDS,
   infiniteRounds: true,
   randomizeColors: false,
   rounds: 1,
@@ -30,6 +64,7 @@ const LIMITS = Object.freeze({
   colorDuration: [0.1, 3600],
   blackDuration: [0.1, 60],
   countdownDuration: [1, 60],
+  positionDuration: [0.1, 3600],
   rounds: [1, 100],
 });
 
@@ -55,6 +90,20 @@ const elements = {
   countdownSoundEnabled: document.querySelector("#countdown-sound-enabled"),
   colorSoundEnabled: document.querySelector("#color-sound-enabled"),
   soundVolume: document.querySelector("#sound-volume"),
+  colorPanel: document.querySelector("#color-panel"),
+  colorSettings: document.querySelectorAll("[data-color-setting]"),
+  positionsPanel: document.querySelector("#positions-panel"),
+  positionList: document.querySelector("#position-list"),
+  positionTemplate: document.querySelector("#position-card-template"),
+  selectAllPositions: document.querySelector("#select-all-positions"),
+  positionSelectionMessage: document.querySelector("#position-selection-message"),
+  positionsEnabled: document.querySelector("#positions-enabled"),
+  positionOptions: document.querySelector("#position-options"),
+  positionPlacement: document.querySelector("#position-placement"),
+  positionDuration: document.querySelector("#position-duration"),
+  positionSize: document.querySelector("#position-size"),
+  randomizePositions: document.querySelector("#randomize-positions"),
+  positionStage: document.querySelector("#position-stage"),
   sessionSummary: document.querySelector("#session-summary"),
   resetDefaults: document.querySelector("#reset-defaults"),
   session: document.querySelector("#session"),
@@ -91,17 +140,27 @@ function normalizeConfig(candidate) {
     ? candidate.colors.map((color) => normalizeHex(String(color))).filter(Boolean)
     : [];
 
+  const selectedPositions = new Set(
+    Array.isArray(candidate.positions) ? candidate.positions : [],
+  );
+
   const normalized = {
     colors: colors.slice(0, MAX_COLORS),
+    positions: POSE_IDS.filter((id) => selectedPositions.has(id)),
     colorDuration: validNumber(candidate.colorDuration, "colorDuration"),
     blackEnabled: typeof candidate.blackEnabled === "boolean" ? candidate.blackEnabled : null,
     blackDuration: validNumber(candidate.blackDuration, "blackDuration"),
     countdownEnabled: typeof candidate.countdownEnabled === "boolean" ? candidate.countdownEnabled : null,
     countdownDuration: validNumber(candidate.countdownDuration, "countdownDuration", true),
-    countdownSize: ["small", "medium", "large"].includes(candidate.countdownSize) ? candidate.countdownSize : null,
+    countdownSize: FIGURE_SIZES.includes(candidate.countdownSize) ? candidate.countdownSize : null,
     countdownSoundEnabled: typeof candidate.countdownSoundEnabled === "boolean" ? candidate.countdownSoundEnabled : null,
     colorSoundEnabled: typeof candidate.colorSoundEnabled === "boolean" ? candidate.colorSoundEnabled : null,
     soundVolume: Object.hasOwn(SOUND_LEVELS, candidate.soundVolume) ? candidate.soundVolume : null,
+    positionsEnabled: typeof candidate.positionsEnabled === "boolean" ? candidate.positionsEnabled : null,
+    positionPlacement: POSITION_PLACEMENTS.includes(candidate.positionPlacement) ? candidate.positionPlacement : null,
+    positionDuration: validNumber(candidate.positionDuration, "positionDuration"),
+    positionSize: FIGURE_SIZES.includes(candidate.positionSize) ? candidate.positionSize : null,
+    randomizePositions: typeof candidate.randomizePositions === "boolean" ? candidate.randomizePositions : null,
     infiniteRounds: typeof candidate.infiniteRounds === "boolean" ? candidate.infiniteRounds : null,
     randomizeColors: typeof candidate.randomizeColors === "boolean" ? candidate.randomizeColors : null,
     rounds: validNumber(candidate.rounds, "rounds", true),
@@ -109,6 +168,12 @@ function normalizeConfig(candidate) {
 
   if (
     normalized.colors.length === 0 ||
+    normalized.positions.length === 0 ||
+    normalized.positionsEnabled === null ||
+    normalized.positionPlacement === null ||
+    normalized.positionDuration === null ||
+    normalized.positionSize === null ||
+    normalized.randomizePositions === null ||
     normalized.colorDuration === null ||
     normalized.blackEnabled === null ||
     normalized.blackDuration === null ||
@@ -129,52 +194,22 @@ function normalizeConfig(candidate) {
 }
 
 function cloneDefaults() {
-  return { ...DEFAULT_CONFIG, colors: [...DEFAULT_CONFIG.colors] };
+  return {
+    ...DEFAULT_CONFIG,
+    colors: [...DEFAULT_CONFIG.colors],
+    positions: [...DEFAULT_CONFIG.positions],
+  };
 }
 
 function loadConfig() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (stored?.version === STORAGE_VERSION) {
-      return normalizeConfig(stored.config) ?? cloneDefaults();
+    const version = Number(stored?.version);
+    if (!Number.isInteger(version) || version < 2 || version > STORAGE_VERSION) {
+      return cloneDefaults();
     }
 
-    if (stored?.version === 5) {
-      return normalizeConfig({
-        ...stored.config,
-        soundVolume: "loud",
-      }) ?? cloneDefaults();
-    }
-
-    if (stored?.version === 4) {
-      return normalizeConfig({
-        ...stored.config,
-        countdownSize: "small",
-        soundVolume: "loud",
-      }) ?? cloneDefaults();
-    }
-
-    if (stored?.version === 3) {
-      return normalizeConfig({
-        ...stored.config,
-        randomizeColors: false,
-        countdownSize: "small",
-        soundVolume: "loud",
-      }) ?? cloneDefaults();
-    }
-
-    if (stored?.version === 2) {
-      return normalizeConfig({
-        ...stored.config,
-        countdownSoundEnabled: false,
-        colorSoundEnabled: false,
-        randomizeColors: false,
-        countdownSize: "small",
-        soundVolume: "loud",
-      }) ?? cloneDefaults();
-    }
-
-    return cloneDefaults();
+    return normalizeConfig({ ...cloneDefaults(), ...stored.config }) ?? cloneDefaults();
   } catch {
     return cloneDefaults();
   }
@@ -199,32 +234,52 @@ function formatDuration(totalSeconds) {
   return hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m` : minutePart;
 }
 
+function replacesColors(sessionConfig) {
+  return sessionConfig.positionsEnabled && sessionConfig.positionPlacement === "replace";
+}
+
+function getCuesPerRound(sessionConfig) {
+  return replacesColors(sessionConfig) ? sessionConfig.positions.length : sessionConfig.colors.length;
+}
+
 function getSummary() {
   if (config.infiniteRounds) {
     return { presentations: Infinity, totalSeconds: Infinity };
   }
 
-  const presentations = config.colors.length * config.rounds;
-  const colorSeconds = presentations * config.colorDuration;
+  const presentations = getCuesPerRound(config) * config.rounds;
+  const colorSeconds = replacesColors(config) ? 0 : presentations * config.colorDuration;
+  const positionSeconds = config.positionsEnabled ? presentations * config.positionDuration : 0;
   const countdownSeconds = config.countdownEnabled ? presentations * config.countdownDuration : 0;
   const blackSeconds = config.blackEnabled ? Math.max(0, presentations - 1) * config.blackDuration : 0;
   return {
     presentations,
-    totalSeconds: colorSeconds + countdownSeconds + blackSeconds,
+    totalSeconds: colorSeconds + positionSeconds + countdownSeconds + blackSeconds,
   };
+}
+
+function describeSequence() {
+  const parts = [];
+  if (!replacesColors(config)) {
+    parts.push(`${config.colors.length} ${config.colors.length === 1 ? "color" : "colors"}`);
+  }
+  if (config.positionsEnabled) {
+    parts.push(`${config.positions.length} ${config.positions.length === 1 ? "position" : "positions"}`);
+  }
+  return parts.join(" · ");
 }
 
 function updateSummary() {
   const { presentations, totalSeconds } = getSummary();
-  const colorLabel = config.colors.length === 1 ? "color" : "colors";
+  const sequence = describeSequence();
   if (config.infiniteRounds) {
-    elements.sessionSummary.textContent = `${config.colors.length} ${colorLabel} · ∞ rounds · ∞ cues · continuous`;
+    elements.sessionSummary.textContent = `${sequence} · ∞ rounds · ∞ cues · continuous`;
     return;
   }
 
   const roundLabel = config.rounds === 1 ? "round" : "rounds";
   const cueLabel = presentations === 1 ? "cue" : "cues";
-  elements.sessionSummary.textContent = `${config.colors.length} ${colorLabel} · ${config.rounds} ${roundLabel} · ${presentations} ${cueLabel} · ${formatDuration(totalSeconds)}`;
+  elements.sessionSummary.textContent = `${sequence} · ${config.rounds} ${roundLabel} · ${presentations} ${cueLabel} · ${formatDuration(totalSeconds)}`;
 }
 
 function renderConditionalSettings() {
@@ -240,6 +295,93 @@ function renderConditionalSettings() {
   elements.countdownDuration.disabled = !config.countdownEnabled;
   elements.countdownSize.disabled = !config.countdownEnabled;
   elements.countdownEnabled.setAttribute("aria-expanded", String(config.countdownEnabled));
+
+  elements.positionOptions.hidden = !config.positionsEnabled;
+  elements.positionPlacement.disabled = !config.positionsEnabled;
+  elements.positionDuration.disabled = !config.positionsEnabled;
+  elements.positionSize.disabled = !config.positionsEnabled;
+  elements.randomizePositions.disabled = !config.positionsEnabled;
+  elements.positionsEnabled.setAttribute("aria-expanded", String(config.positionsEnabled));
+  if (config.positionsEnabled) renderPositions();
+  elements.positionsPanel.hidden = !config.positionsEnabled;
+
+  elements.colorSettings.forEach((element) => {
+    element.hidden = replacesColors(config);
+  });
+}
+
+const preloadedPoses = new Map();
+
+function poseSource(poseId) {
+  return `${POSE_IMAGE_PATH}${poseId}.png`;
+}
+
+function preloadPoses(poseIds) {
+  poseIds.forEach((poseId) => {
+    if (preloadedPoses.has(poseId)) return;
+    const image = new Image();
+    image.src = poseSource(poseId);
+    preloadedPoses.set(poseId, image);
+  });
+}
+
+function createPoseFigure(poseId, { decorative = false } = {}) {
+  const pose = POSE_BY_ID.get(poseId);
+  if (!pose) return document.createDocumentFragment();
+
+  const figure = new Image(POSE_IMAGE_WIDTH, POSE_IMAGE_HEIGHT);
+  figure.className = "pose-figure";
+  figure.src = poseSource(pose.id);
+  figure.draggable = false;
+
+  if (decorative) {
+    figure.alt = "";
+    figure.loading = "lazy";
+    figure.setAttribute("aria-hidden", "true");
+  } else {
+    figure.alt = pose.name;
+  }
+
+  return figure;
+}
+
+function updatePositionSelection() {
+  const onlySelected = config.positions.length === 1 ? config.positions[0] : null;
+
+  elements.positionList.querySelectorAll(".position-toggle").forEach((toggle) => {
+    const isSelected = config.positions.includes(toggle.value);
+    toggle.checked = isSelected;
+    toggle.disabled = toggle.value === onlySelected;
+    toggle.closest(".position-card").classList.toggle("is-selected", isSelected);
+  });
+
+  elements.selectAllPositions.disabled = config.positions.length === POSE_IDS.length;
+  elements.positionSelectionMessage.textContent = onlySelected
+    ? "At least one position stays selected."
+    : `${config.positions.length} of ${POSE_IDS.length} positions selected.`;
+}
+
+function renderPositions() {
+  if (elements.positionList.childElementCount > 0) {
+    updatePositionSelection();
+    return;
+  }
+
+  POSE_LIBRARY.forEach((pose) => {
+    const fragment = elements.positionTemplate.content.cloneNode(true);
+    const card = fragment.querySelector(".position-card");
+    const toggle = fragment.querySelector(".position-toggle");
+    const thumbnail = fragment.querySelector(".position-thumb");
+    const name = fragment.querySelector(".position-name");
+
+    card.dataset.pose = pose.id;
+    toggle.value = pose.id;
+    thumbnail.append(createPoseFigure(pose.id, { decorative: true }));
+    name.textContent = pose.name;
+    elements.positionList.append(fragment);
+  });
+
+  updatePositionSelection();
 }
 
 function renderColors(focusIndex = null) {
@@ -303,6 +445,11 @@ function renderForm() {
   elements.countdownSoundEnabled.checked = config.countdownSoundEnabled;
   elements.colorSoundEnabled.checked = config.colorSoundEnabled;
   elements.soundVolume.value = config.soundVolume;
+  elements.positionsEnabled.checked = config.positionsEnabled;
+  elements.positionPlacement.value = config.positionPlacement;
+  elements.positionDuration.value = String(config.positionDuration);
+  elements.positionSize.value = config.positionSize;
+  elements.randomizePositions.checked = config.randomizePositions;
   renderColors();
   renderConditionalSettings();
   updateSummary();
@@ -386,8 +533,8 @@ function handleNumericInput(element, key, integer = false) {
   commitConfig();
 }
 
-function shuffleColors(colors, previousOrder = null) {
-  const shuffled = [...colors];
+function shuffleSequence(items, previousOrder = null) {
+  const shuffled = [...items];
 
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
@@ -397,26 +544,49 @@ function shuffleColors(colors, previousOrder = null) {
   const matchesPrevious =
     previousOrder &&
     shuffled.length > 1 &&
-    shuffled.every((color, index) => color === previousOrder[index]);
+    shuffled.every((item, index) => item === previousOrder[index]);
 
   if (matchesPrevious) shuffled.push(shuffled.shift());
   return shuffled;
 }
 
-function buildRoundStages(sessionConfig, colors, hasFollowingRound) {
+function buildCueStages(sessionConfig, cue) {
   const stages = [];
-  colors.forEach((color, colorIndex) => {
-    if (sessionConfig.countdownEnabled) {
-      for (let value = sessionConfig.countdownDuration; value >= 1; value -= 1) {
-        stages.push({ type: "countdown", value, durationMs: 1000 });
-      }
-    }
+  const placement = sessionConfig.positionsEnabled ? sessionConfig.positionPlacement : null;
+  const positionStage = () => ({
+    type: "position",
+    pose: cue.pose,
+    durationMs: sessionConfig.positionDuration * 1000,
+  });
 
-    stages.push({ type: "color", color, durationMs: sessionConfig.colorDuration * 1000 });
+  if (placement === "before-countdown") stages.push(positionStage());
+
+  if (sessionConfig.countdownEnabled) {
+    for (let value = sessionConfig.countdownDuration; value >= 1; value -= 1) {
+      stages.push({ type: "countdown", value, durationMs: 1000 });
+    }
+  }
+
+  if (placement === "before-color" || placement === "replace") stages.push(positionStage());
+
+  if (placement !== "replace") {
+    stages.push({ type: "color", color: cue.color, durationMs: sessionConfig.colorDuration * 1000 });
+  }
+
+  if (placement === "after-color") stages.push(positionStage());
+
+  return stages;
+}
+
+function buildRoundStages(sessionConfig, cues, hasFollowingRound) {
+  const stages = [];
+
+  cues.forEach((cue, cueIndex) => {
+    stages.push(...buildCueStages(sessionConfig, cue));
 
     if (
       sessionConfig.blackEnabled &&
-      (colorIndex < colors.length - 1 || hasFollowingRound)
+      (cueIndex < cues.length - 1 || hasFollowingRound)
     ) {
       stages.push({ type: "black", durationMs: sessionConfig.blackDuration * 1000 });
     }
@@ -425,34 +595,59 @@ function buildRoundStages(sessionConfig, colors, hasFollowingRound) {
   return stages;
 }
 
-function getRoundOrder(sessionConfig, previousOrder = null) {
-  return sessionConfig.randomizeColors
-    ? shuffleColors(sessionConfig.colors, previousOrder)
+function createSequenceState(sessionConfig) {
+  const state = { previousColors: null, previousPositions: null, poseOrder: [], poseIndex: 0 };
+
+  state.nextPose = () => {
+    if (state.poseIndex >= state.poseOrder.length) {
+      state.poseOrder = sessionConfig.randomizePositions
+        ? shuffleSequence(sessionConfig.positions, state.poseOrder)
+        : [...sessionConfig.positions];
+      state.poseIndex = 0;
+    }
+    const pose = state.poseOrder[state.poseIndex];
+    state.poseIndex += 1;
+    return pose;
+  };
+
+  return state;
+}
+
+function getRoundCues(sessionConfig, state) {
+  if (replacesColors(sessionConfig)) {
+    const positions = sessionConfig.randomizePositions
+      ? shuffleSequence(sessionConfig.positions, state.previousPositions)
+      : [...sessionConfig.positions];
+    state.previousPositions = positions;
+    return positions.map((pose) => ({ pose }));
+  }
+
+  const colors = sessionConfig.randomizeColors
+    ? shuffleSequence(sessionConfig.colors, state.previousColors)
     : [...sessionConfig.colors];
+  state.previousColors = colors;
+  return colors.map((color) => ({
+    color,
+    pose: sessionConfig.positionsEnabled ? state.nextPose() : null,
+  }));
 }
 
 function buildStages(sessionConfig) {
+  const state = createSequenceState(sessionConfig);
   const stages = [];
-  let previousOrder = null;
 
   for (let round = 0; round < sessionConfig.rounds; round += 1) {
-    const colors = getRoundOrder(sessionConfig, previousOrder);
+    const cues = getRoundCues(sessionConfig, state);
     const hasFollowingRound = round < sessionConfig.rounds - 1;
-    stages.push(...buildRoundStages(sessionConfig, colors, hasFollowingRound));
-    previousOrder = colors;
+    stages.push(...buildRoundStages(sessionConfig, cues, hasFollowingRound));
   }
 
   return stages;
 }
 
 function createInfiniteRoundFactory(sessionConfig) {
-  let previousOrder = null;
-
-  return () => {
-    const colors = getRoundOrder(sessionConfig, previousOrder);
-    previousOrder = colors;
-    return buildRoundStages(sessionConfig, colors, true);
-  };
+  const state = createSequenceState(sessionConfig);
+  return () => buildRoundStages(sessionConfig, getRoundCues(sessionConfig, state), true);
 }
 
 class AudioCueEngine {
@@ -492,6 +687,11 @@ class AudioCueEngine {
   playColorTransition() {
     if (!this.colorEnabled) return;
     this.playTone(920, 0.13, this.volume.color);
+  }
+
+  playPositionTransition() {
+    if (!this.colorEnabled) return;
+    this.playTone(700, 0.13, this.volume.color);
   }
 
   playTone(frequency, durationSeconds, volume) {
@@ -637,21 +837,37 @@ class SessionController {
   }
 }
 
+function setCountdownText(text) {
+  elements.countdown.value = text;
+  elements.countdown.textContent = text;
+}
+
+function renderPositionFigure(poseId) {
+  if (!poseId) {
+    elements.positionStage.hidden = true;
+    elements.positionStage.replaceChildren();
+    return;
+  }
+
+  elements.positionStage.replaceChildren(createPoseFigure(poseId));
+  elements.positionStage.hidden = false;
+}
+
 function renderStage(stage) {
   elements.completeScreen.hidden = true;
+  renderPositionFigure(stage.type === "position" ? stage.pose : null);
+
   if (stage.type === "color") {
     elements.session.style.backgroundColor = stage.color;
-    elements.countdown.value = "";
-    elements.countdown.textContent = "";
+    setCountdownText("");
     audioCueEngine.playColorTransition();
     return;
   }
 
   elements.session.style.backgroundColor = "#000000";
-  const countdownText = stage.type === "countdown" ? String(stage.value) : "";
-  elements.countdown.value = countdownText;
-  elements.countdown.textContent = countdownText;
+  setCountdownText(stage.type === "countdown" ? String(stage.value) : "");
   if (stage.type === "countdown") audioCueEngine.playCountdown();
+  if (stage.type === "position") audioCueEngine.playPositionTransition();
 }
 
 function renderPaused(isPaused) {
@@ -660,8 +876,8 @@ function renderPaused(isPaused) {
 
 function showComplete() {
   elements.session.style.backgroundColor = "#000000";
-  elements.countdown.value = "";
-  elements.countdown.textContent = "";
+  setCountdownText("");
+  renderPositionFigure(null);
   window.clearTimeout(completionTimerId);
   completionTimerId = window.setTimeout(() => {
     completionTimerId = null;
@@ -709,11 +925,13 @@ function startSession({ requestFullScreen = true } = {}) {
   if (!snapshot) return;
 
   audioCueEngine.prepare(snapshot);
+  if (snapshot.positionsEnabled) preloadPoses(snapshot.positions);
   if (requestFullScreen) requestFullscreen();
   window.clearTimeout(completionTimerId);
   completionTimerId = null;
   elements.session.setAttribute("aria-hidden", "false");
   elements.session.dataset.countdownSize = snapshot.countdownSize;
+  elements.session.dataset.positionSize = snapshot.positionSize;
   elements.completeScreen.hidden = true;
   elements.pauseOverlay.hidden = true;
   document.activeElement?.blur();
@@ -737,11 +955,12 @@ function endSession() {
   window.clearTimeout(cursorTimerId);
   window.clearTimeout(completionTimerId);
   completionTimerId = null;
-  elements.countdown.value = "";
-  elements.countdown.textContent = "";
+  setCountdownText("");
+  renderPositionFigure(null);
   elements.completeScreen.hidden = true;
   elements.session.setAttribute("aria-hidden", "true");
   delete elements.session.dataset.countdownSize;
+  delete elements.session.dataset.positionSize;
   elements.session.style.backgroundColor = "#000000";
   document.body.classList.remove("in-session", "cursor-hidden");
   exitFullscreen();
@@ -767,7 +986,51 @@ elements.addColor.addEventListener("click", () => {
   commitConfig();
 });
 
+elements.positionList.addEventListener("change", (event) => {
+  if (!event.target.matches(".position-toggle")) return;
+
+  const selected = new Set(config.positions);
+  if (event.target.checked) {
+    selected.add(event.target.value);
+  } else {
+    selected.delete(event.target.value);
+  }
+
+  config.positions = POSE_IDS.filter((id) => selected.has(id));
+  updatePositionSelection();
+  commitConfig();
+});
+
+elements.selectAllPositions.addEventListener("click", () => {
+  config.positions = [...POSE_IDS];
+  updatePositionSelection();
+  commitConfig();
+});
+
+elements.positionsEnabled.addEventListener("change", () => {
+  config.positionsEnabled = elements.positionsEnabled.checked;
+  renderConditionalSettings();
+  commitConfig();
+});
+
+elements.positionPlacement.addEventListener("change", () => {
+  config.positionPlacement = elements.positionPlacement.value;
+  renderConditionalSettings();
+  commitConfig();
+});
+
+elements.positionSize.addEventListener("change", () => {
+  config.positionSize = elements.positionSize.value;
+  commitConfig();
+});
+
+elements.randomizePositions.addEventListener("change", () => {
+  config.randomizePositions = elements.randomizePositions.checked;
+  commitConfig();
+});
+
 elements.colorDuration.addEventListener("input", () => handleNumericInput(elements.colorDuration, "colorDuration"));
+elements.positionDuration.addEventListener("input", () => handleNumericInput(elements.positionDuration, "positionDuration"));
 elements.rounds.addEventListener("input", () => handleNumericInput(elements.rounds, "rounds", true));
 elements.blackDuration.addEventListener("input", () => handleNumericInput(elements.blackDuration, "blackDuration"));
 elements.countdownDuration.addEventListener("input", () => handleNumericInput(elements.countdownDuration, "countdownDuration", true));
